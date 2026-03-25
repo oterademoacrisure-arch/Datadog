@@ -1,0 +1,108 @@
+import random
+import datetime
+import sys
+import os
+
+# =========================================================
+# 1. DATADOG CLIENT MODULE (The "Library" for EDE-210739)
+# =========================================================
+
+class DummyDatadogLogClient:
+    """Mock client for local testing and EDE-210739 validation."""
+    def __init__(self, mode="random"):
+        self.mode = mode
+        print(f"🛠️ [Init] Dummy Datadog Client initialized in '{mode}' mode.")
+
+    def fetch_logs(self, query, limit=5):
+        print(f"🔍 [Datadog] Executing Query: {query}")
+        
+        # Simulated log banks
+        error_logs = ["ERROR: Connection timeout on db-node-1", "ERROR: Disk I/O saturation"]
+        warn_logs = ["WARN: Slow index scan on 'orders'", "WARN: Replication lag 2s"]
+        info_logs = ["INFO: Query completed 0.8s", "INFO: Backup successful"]
+
+        logs = []
+        for _ in range(random.randint(2, limit)):
+            ts = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            if self.mode == "critical":
+                logs.append(f"{ts} {random.choice(error_logs)}")
+            elif self.mode == "warning":
+                logs.append(f"{ts} {random.choice(warn_logs)}")
+            else:
+                logs.append(f"{ts} {random.choice(info_logs)}")
+        return logs
+
+class DatadogLogClient:
+    """Production client wrapper for Datadog Logs API (API/APP Keys)."""
+    def __init__(self, api_key, app_key, env="dev"):
+        self.api_key = api_key
+        self.app_key = app_key
+        self.host = "https://api.datadoghq.com"
+        print(f"🚀 [Init] Production Datadog Client active for hnb-{env}")
+
+    def fetch_logs(self, query, limit=5):
+        # TODO: Once EDE-210732 keys are in Vault, implement 
+        # the 'datadog-api-client' library calls here.
+        print("⚠️ Production API call triggered (Logic Placeholder)")
+        return []
+
+# =========================================================
+# 2. GDK & AGENT LOGIC
+# =========================================================
+
+class DatabaseAgentGDK:
+    def __init__(self, use_dummy=True, dummy_mode="random", dd_keys=None):
+        # Toggle between Dummy and Real based on key availability
+        if use_dummy or not dd_keys:
+            self.datadog = DummyDatadogLogClient(mode=dummy_mode)
+        else:
+            self.datadog = DatadogLogClient(
+                api_key=dd_keys.get('api_key'), 
+                app_key=dd_keys.get('app_key')
+            )
+
+    def invoke_llmgateway(self, prompt):
+        """Simulates the CFGGenAIGDK LLM call."""
+        print("🤖 [LLM] Analyzing telemetry and generating report...")
+        return f"LLM Analysis Complete: Based on logs, the system status is {self.datadog.mode.upper()}."
+
+# =========================================================
+# 3. DISPATCHER & HANDLERS
+# =========================================================
+
+def handle_database_health_monitoring(summary_payload, gdk):
+    subject = summary_payload.get('subject', 'Database')
+    print(f"\n--- Starting Health Check for {subject} ---")
+    
+    # 1. Fetch Data using the Client Library
+    db_query = f"service:database_service status:error subject:{subject}"
+    try:
+        raw_logs = gdk.datadog.fetch_logs(db_query)
+        log_context = "\n".join(raw_logs) if raw_logs else "No issues found."
+    except Exception as e:
+        print(f"❌ Connectivity Error: {e}")
+        log_context = "Error retrieving logs from Datadog."
+
+    # 2. LLM Analysis
+    prompt = f"User Question: {summary_payload['original_question']}\nLogs:\n{log_context}"
+    report = gdk.invoke_llmgateway(prompt)
+    
+    print("\n[FINAL REPORT]")
+    print(report)
+    return report
+
+# =========================================================
+# 4. EXECUTION (Main Driver)
+# =========================================================
+
+if __name__ == "__main__":
+    # Simulate data coming from your Router/Summarizer
+    test_payload = {
+        "subject": "Payments DB",
+        "original_question": "Why did we see a spike in errors 10 minutes ago?"
+    }
+
+    # MODE TOGGLE: Set use_dummy=False once EDE-210732 is done
+    agent = DatabaseAgentGDK(use_dummy=True, dummy_mode="critical")
+    
+    handle_database_health_monitoring(test_payload, agent)
