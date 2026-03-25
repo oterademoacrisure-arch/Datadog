@@ -1,0 +1,36 @@
+from fastapi import FastAPI
+from pydantic import BaseModel
+import uvicorn
+
+# --- Import your GDK classes and handlers here ---
+# from your_module import DatabaseAgentGDK, dispatch
+
+app = FastAPI()
+
+# Define request schema
+class SummaryPayload(BaseModel):
+    subject: str
+    original_question: str
+
+@app.post("/health-monitor")
+def health_monitor(payload: SummaryPayload, mode: str = "random", use_dummy: bool = True):
+    """
+    API endpoint for Database Health Monitoring
+    mode: healthy | warning | critical | random
+    use_dummy: True for testing, False for real Datadog
+    """
+    gdk = DatabaseAgentGDK("Database Health Monitoring", use_dummy=use_dummy, dummy_mode=mode)
+    result = dispatch("Database Health Monitoring", payload.dict(), gdk)
+    return {"report": result}
+
+
+# Optional: expose query optimizer too
+@app.post("/query-optimizer")
+def query_optimizer(payload: SummaryPayload):
+    gdk = DatabaseAgentGDK("DML/DDL Query Optimizer", use_dummy=True)
+    result = dispatch("DML/DDL Query Optimizer", payload.dict(), gdk)
+    return {"report": result}
+
+
+if __name__ == "__main__":
+    uvicorn.run("api_server:app", host="0.0.0.0", port=8000, reload=True)
