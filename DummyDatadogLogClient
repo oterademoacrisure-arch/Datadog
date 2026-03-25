@@ -1,3 +1,8 @@
+python db_health_monitor.py healthy
+python db_health_monitor.py warning
+python db_health_monitor.py critical
+python db_health_monitor.py random
+========================================
 import random
 import datetime
 import sys
