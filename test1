@@ -1,0 +1,131 @@
+import random
+import datetime
+import time
+import requests
+from fastapi import FastAPI
+from pydantic import BaseModel
+import uvicorn
+
+# =========================================================
+# PART 1: DATADOG CLIENT LIBRARY (EDE-210739 & EDE-210732)
+# =========================================================
+
+class DatadogLogClient:
+    """The reusable library that handles Auth, Pagination, and Rate Limiting."""
+    def __init__(self, api_key=None, app_key=None, is_dummy=True, dummy_mode="random"):
+        self.is_dummy = is_dummy
+        self.dummy_mode = dummy_mode
+        self.api_key = api_key
+        self.app_key = app_key
+        self.base_url = "https://api.datadoghq.com/api/v2/logs/events/search"
+
+    def fetch_logs(self, query, limit=10):
+        if self.is_dummy:
+            return self._mock_fetch_logs(query, limit)
+        return self._execute_real_search(query, limit)
+
+    def _execute_real_search(self, query, limit):
+        all_logs = []
+        next_cursor = None
+        retry_count = 0
+        
+        while len(all_logs) < limit and retry_count < 3:
+            # AUTH HEADERS (EDE-210732)
+            headers = {
+                "DD-API-KEY": self.api_key,
+                "DD-APPLICATION-KEY": self.app_key,
+                "Content-Type": "application/json"
+            }
+            # PAGINATION PAYLOAD (EDE-210739)
+            payload = {
+                "filter": {"query": query, "from": "now-15m", "to": "now"},
+                "page": {"limit": 5, "cursor": next_cursor}
+            }
+            try:
+                response = requests.post(self.base_url, json=payload, headers=headers, timeout=10)
+                
+                # RATE LIMITING (EDE-210739)
+                if response.status_code == 429:
+                    time.sleep(2 ** retry_count)
+                    retry_count += 1
+                    continue
+
+                response.raise_for_status()
+                data = response.json()
+
+                for event in data.get('data', []):
+                    attr = event.get('attributes', {})
+                    all_logs.append(f"{attr.get('timestamp')}: {attr.get('message')}")
+
+                next_cursor = data.get('meta', {}).get('page', {}).get('after')
+                if not next_cursor: break
+            except Exception as e:
+                print(f"API Error: {e}")
+                break
+        return all_logs
+
+    def _mock_fetch_logs(self, query, limit):
+        """Standard mock for testing without API keys."""
+        logs = []
+        templates = {
+            "critical": ["ERROR: db-node-1 disk full", "ERROR: Deadlock detected"],
+            "warning": ["WARN: Slow query detected", "WARN: Replication lag"],
+            "healthy": ["INFO: Health check passed", "INFO: Query optimized"]
+        }
+        pool = templates.get(self.dummy_mode, templates["healthy"])
+        for _ in range(random.randint(2, limit)):
+            ts = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            logs.append(f"{ts} | {random.choice(pool)}")
+        return logs
+
+# =========================================================
+# PART 2: GDK & HANDLERS (The "Dispatcher" Logic)
+# =========================================================
+
+class DatabaseAgentGDK:
+    def __init__(self, usecase, use_dummy=True, dummy_mode="random", dd_keys=None):
+        self.datadog = DatadogLogClient(
+            api_key=dd_keys.get('api_key') if dd_keys else None,
+            app_key=dd_keys.get('app_key') if dd_keys else None,
+            is_dummy=use_dummy,
+            dummy_mode=dummy_mode
+        )
+
+    def invoke_llmgateway(self, prompt):
+        # Simulating the GenAI SDK call
+        return f"LLM Analysis Complete. Status: {self.datadog.dummy_mode if self.datadog.is_dummy else 'Live'}"
+
+def dispatch(use_case, payload_dict, gdk):
+    """Orchestrates fetching logs and getting LLM response."""
+    query = f"service:database_service status:error subject:{payload_dict['subject']}"
+    logs = gdk.datadog.fetch_logs(query)
+    prompt = f"Question: {payload_dict['original_question']}\nLogs: {logs}"
+    return gdk.invoke_llmgateway(prompt)
+
+# =========================================================
+# PART 3: FASTAPI SERVER (The "Front Door")
+# =========================================================
+
+app = FastAPI()
+
+class SummaryPayload(BaseModel):
+    subject: str
+    original_question: str
+
+@app.post("/health-monitor")
+def health_monitor(payload: SummaryPayload, mode: str = "random", use_dummy: bool = True):
+    # Initialize GDK with the chosen settings
+    gdk = DatabaseAgentGDK("Database Health Monitoring", use_dummy=use_dummy, dummy_mode=mode)
+    # Run the logic
+    result = dispatch("Database Health Monitoring", payload.dict(), gdk)
+    return {"report": result}
+
+if __name__ == "__main__":
+    uvicorn.run(app, host="0.0.0.0", port=8000)
+
+=====
+
+🧪 How to test in Postman
+Start the server: Run python api_server.py.
+
+Request: Send a POST to http://localhost:8000/health-monitor?mode=critical&use_dummy=true.
