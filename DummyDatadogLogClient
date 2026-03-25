@@ -1,12 +1,9 @@
 import random
 import datetime
+import sys
 
-# --- Dummy Datadog Client with Mode Switch ---
 class DummyDatadogLogClient:
     def __init__(self, mode="random"):
-        """
-        mode can be: 'healthy', 'warning', 'critical', or 'random'
-        """
         self.mode = mode
 
     def fetch_logs(self, query):
@@ -32,7 +29,6 @@ class DummyDatadogLogClient:
         logs = []
         for _ in range(random.randint(2, 5)):
             timestamp = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-
             if self.mode == "critical":
                 logs.append(f"{timestamp} {random.choice(error_logs)}")
             elif self.mode == "warning":
@@ -42,11 +38,9 @@ class DummyDatadogLogClient:
             else:  # random mix
                 choice = random.choice([error_logs, warn_logs, info_logs])
                 logs.append(f"{timestamp} {random.choice(choice)}")
-
         return logs
 
 
-# --- Dummy GDK Wrapper ---
 class DatabaseAgentGDK:
     def __init__(self, mode="random"):
         self.datadog = DummyDatadogLogClient(mode=mode)
@@ -54,16 +48,13 @@ class DatabaseAgentGDK:
     def invoke_llmgateway(self, prompt):
         print("[Dummy LLM] Prompt received:")
         print(prompt)
-        return "Simulated analysis: Database health evaluated based on dummy logs."
+        return f"Simulated analysis: Database health evaluated in {self.datadog.mode.upper()} mode."
 
 
-# --- Handler Function ---
 def handle_database_health_monitoring(summary_payload: dict, gdk_instance: DatabaseAgentGDK):
     print(f"\n[System] Identifying health issues for: {summary_payload.get('subject', 'Database')}")
-
     db_query = "service:database_service (status:error OR duration:>1s)"
     raw_logs = gdk_instance.datadog.fetch_logs(db_query)
-
     log_context = "\n".join(raw_logs) if raw_logs else "No critical logs found."
 
     analysis_prompt = f"""
@@ -72,19 +63,15 @@ def handle_database_health_monitoring(summary_payload: dict, gdk_instance: Datab
     Relevant Database Logs from Datadog:
     {log_context}
 
-    Task: Based on these logs, explain the current health of the database. 
-    If there are errors, suggest a root cause. If no logs are found, 
-    provide general health-check advice.
+    Task: Based on these logs, explain the current health of the database.
     """
 
     response = gdk_instance.invoke_llmgateway(analysis_prompt)
-
     print("\n--- Health Monitoring Report ---")
     print(response)
     return response
 
 
-# --- Dispatcher ---
 def dispatch(use_case: str, summary_payload: dict, gdk: DatabaseAgentGDK):
     if use_case == "Database Health Monitoring":
         return handle_database_health_monitoring(summary_payload, gdk)
@@ -92,13 +79,14 @@ def dispatch(use_case: str, summary_payload: dict, gdk: DatabaseAgentGDK):
         print("Standard response...")
 
 
-# --- Example Run ---
 if __name__ == "__main__":
+    # Read mode from command line argument
+    mode = sys.argv[1] if len(sys.argv) > 1 else "random"
+
     summary_payload = {
         "subject": "Payments DB",
         "original_question": "Why is the database slow today?"
     }
 
-    # Try different modes: "healthy", "warning", "critical", "random"
-    gdk = DatabaseAgentGDK(mode="critical")
+    gdk = DatabaseAgentGDK(mode=mode)
     dispatch("Database Health Monitoring", summary_payload, gdk)
