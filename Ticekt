@@ -1,0 +1,34 @@
+
+
+EDE-210739 : Develop Datadog Log Client Library
+
+* Work with team to identify all the APIs that are needed for Chatbot * Document all of them in Confluence * Test end to end connectivity
+
+
+Create a reusable Datadog Log Client library/module in our application that wraps the Datadog Logs Search API, handles authentication, pagination, rate limiting, and error handling so we can easily query logs from any part for our analytics.
+===========================================
+
+EDE-210732
+
+ 
+Create Datadog API and APP Keys for Programmatic Log Access
+
+Description
+
+Generate dedicated Datadog API and APP keys scoped for the hnb services so our apps can authenticate against the Datadog Logs API to pull log data for analytics. These keys should be stored securely in Vault.
+
+Acceptance Criteria
+
+
+*Check with Observability team if we can reuse any existing tokens, if yes we may not need the entire work, discuss with team for next steps.
+
+- Dedicated API key created in Datadog (Organization Settings → API Keys) named hnb-<env>
+
+–  Dedicated APP key created in Datadog (Organization Settings → Application Keys) named hnb-<env>
+
+- APP key scoped with minimal permissions: logs_read_data, logs_read_index (if Datadog supports key scoping, otherwise use a dedicated service account)
+
+- Keys stored securely in Vault
+
+============================================================
+
