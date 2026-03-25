@@ -1,3 +1,13 @@
+
+🚀 Final Step to Run
+Open PowerShell in VS Code.
+
+Install dependencies: pip install fastapi uvicorn requests pydantic
+
+Run: python api_server.py
+
+Open Postman and send your JSON to http://localhost:8000/health-monitor.
+======================================
 import random
 import datetime
 import time
