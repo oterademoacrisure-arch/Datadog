@@ -1,50 +1,34 @@
-1. Keep the Dummy Client for Local Testing
-Add the dummy client alongside your real DatadogLogClient. That way you can switch easily:
 
-python
-class DummyDatadogLogClient:
-    def __init__(self, mode="random"):
-        self.mode = mode
-    def fetch_logs(self, query):
-        # same randomized log generator we built earlier
-        ...
-2. Update Your DatabaseAgentGDK
-Modify the constructor so you can choose between real Datadog and dummy:
 
-python
-class DatabaseAgentGDK(CFGGenAIGDK):
-    def __init__(self, usecase_name, dd_keys=None, use_dummy=False, dummy_mode="random", **kwargs):
-        super().__init__(usecase_name, **kwargs)
-        
-        if use_dummy:
-            self.datadog = DummyDatadogLogClient(mode=dummy_mode)
-        else:
-            self.datadog = DatadogLogClient(
-                api_key=dd_keys['api_key'],
-                app_key=dd_keys['app_key']
-            )
-3. Run with Either Mode
-Dummy mode (local testing):
+EDE-210739 : Develop Datadog Log Client Library
 
-python
-summary_payload = {
-    "subject": "Payments DB",
-    "original_question": "Why is the database slow today?"
-}
+* Work with team to identify all the APIs that are needed for Chatbot * Document all of them in Confluence * Test end to end connectivity
 
-gdk = DatabaseAgentGDK("Database Health Monitoring", use_dummy=True, dummy_mode="critical")
-dispatch("Database Health Monitoring", summary_payload, gdk)
-Real Datadog mode (once you have keys):
 
-python
-dd_keys = {"api_key": "YOUR_API_KEY", "app_key": "YOUR_APP_KEY"}
-gdk = DatabaseAgentGDK("Database Health Monitoring", dd_keys=dd_keys, use_dummy=False)
-dispatch("Database Health Monitoring", summary_payload, gdk)
-4. Why This Works
-Ticket 1 (Queries): Your handler already builds the query string.
+Create a reusable Datadog Log Client library/module in our application that wraps the Datadog Logs Search API, handles authentication, pagination, rate limiting, and error handling so we can easily query logs from any part for our analytics.
+===========================================
 
-Ticket 2 (Library): DatadogLogClient encapsulates the API logic.
+EDE-210732
 
-Ticket 3 (Keys): Keys are injected into DatabaseAgentGDK.
+ 
+Create Datadog API and APP Keys for Programmatic Log Access
 
-Testing: You can flip use_dummy=True until you get real Datadog access.
+Description
+
+Generate dedicated Datadog API and APP keys scoped for the hnb services so our apps can authenticate against the Datadog Logs API to pull log data for analytics. These keys should be stored securely in Vault.
+
+Acceptance Criteria
+
+
+*Check with Observability team if we can reuse any existing tokens, if yes we may not need the entire work, discuss with team for next steps.
+
+- Dedicated API key created in Datadog (Organization Settings → API Keys) named hnb-<env>
+
+–  Dedicated APP key created in Datadog (Organization Settings → Application Keys) named hnb-<env>
+
+- APP key scoped with minimal permissions: logs_read_data, logs_read_index (if Datadog supports key scoping, otherwise use a dedicated service account)
+
+- Keys stored securely in Vault
+
+============================================================
+
