@@ -1,0 +1,28 @@
+[User Input] 
+      |
+      v
++-------------------------+
+|     FastAPI Route       | <--- Validates Schema (Pydantic)
++-------------------------+
+      |
+      v
++-------------------------+
+|   DatabaseAgentGDK      | <--- Determines Dummy vs. Prod
++-------------------------+
+      |
+      |----[ fetch_logs() ]----> +---------------------------+
+                                 |  Datadog Log Library      |
+                                 |  1. Auth (API/APP Keys)   |
+                                 |  2. Pagination (Cursors)  |
+                                 |  3. Rate Limiting (429)   |
+                                 +---------------------------+
+                                              |
+      <---[ Raw Log List ]--------------------+
+      |
+      v
++-------------------------+
+|    LLM Gateway          | <--- Generates Diagnostic Report
++-------------------------+
+      |
+      v
+[Postman Response (JSON)]
