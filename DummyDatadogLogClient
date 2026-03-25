@@ -1,0 +1,39 @@
+import random
+import datetime
+
+class DummyDatadogLogClient:
+    def fetch_logs(self, query):
+        print(f"[Dummy] Running query: {query}")
+        
+        # Define possible log types
+        error_logs = [
+            "ERROR: Connection timeout on db-node-1",
+            "ERROR: Transaction rollback due to deadlock",
+            "ERROR: Authentication failure for user 'reporting_app'",
+            "ERROR: Disk I/O saturation detected"
+        ]
+        
+        warn_logs = [
+            "WARN: Query exceeded 1.5s on db-node-2",
+            "WARN: Slow index scan detected on table 'orders'",
+            "WARN: Replication lag of 2.3s on standby node"
+        ]
+        
+        info_logs = [
+            "INFO: Query completed in 0.8s",
+            "INFO: Backup completed successfully",
+            "INFO: Connection pool usage at 65%"
+        ]
+        
+        # Randomly select logs based on query type
+        logs = []
+        for _ in range(random.randint(2, 5)):
+            timestamp = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            if "error" in query and random.random() < 0.6:
+                logs.append(f"{timestamp} {random.choice(error_logs)}")
+            elif "duration" in query and random.random() < 0.5:
+                logs.append(f"{timestamp} {random.choice(warn_logs)}")
+            else:
+                logs.append(f"{timestamp} {random.choice(info_logs)}")
+        
+        return logs
